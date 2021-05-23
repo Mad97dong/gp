@@ -1,2 +1,1 @@
-# GP_Grad# gp
-# gp
+# gp and derivative of gp
