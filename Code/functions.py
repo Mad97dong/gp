@@ -434,6 +434,24 @@ class sin:
         else:
             return fval
 
+class sin_add:
+    def __init__(self, noise=True, noise_std=0):
+        np.random.seed(0)
+        self.input_dim = 1
+        self.bounds = {"x": (-1, 15)}
+        # self.bounds={'x':(0,1)}
+        self.name = "sin_add"
+        self.noise = noise
+        self.noise_std = noise_std
+
+    def func(self, coord):
+        x = np.asarray(coord)
+        fval = np.reshape(np.sin(x), (-1, 1)) + 0.1 * np.reshape(x, (-1, 1))
+        if self.noise:
+            return fval + np.random.normal(0, self.noise_std, size=(x.shape[0], 1))
+        else:
+            return fval
+
 
 
 class sincos:

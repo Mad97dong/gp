@@ -51,25 +51,108 @@ class GP_grad(GP):
         X_p = np.reshape(self.X[:, self.p], (-1, 1))
 
         sqdist = sq_dist(self.X, Xtest)
+#         print(sqdist.shape)
         diff = X_p - Xtest_p
         K_01 = (variance/(lengthscale**2)) * diff * np.exp(-0.5 * sqdist / (lengthscale**2))
         return K_01
 
-    def joint_MVN(self, Xtest): # give the joint distribution of gp and derivative
-        N = self.X.shape[0]
-        M = Xtest.shape[0]
+#     def joint_MVN(self, Xtest): # give the joint distribution of gp and derivative
+#         N = self.X.shape[0]
+#         M = Xtest.shape[0]
 
-        if len(Xtest.shape) == 1:  # 1d
-            Xtest = np.reshape(Xtest, (-1, self.X.shape[1]))
+#         if len(Xtest.shape) == 1:  # 1d
+#             Xtest = np.reshape(Xtest, (-1, self.X.shape[1]))
+
+#         K = self.cov_RBF(self.X, self.X)
+#         K_11 = self.K11(Xtest)
+#         K_01 = self.K01(Xtest)
+#         K_10 = K_01.T
+#         up = np.hstack([K, K_01])
+#         down = np.hstack([K_10, K_11])
+#         joint_cov = np.vstack([up, down])
+#         return np.zeros((M+N, 1)), joint_cov
+
+    def Kpq(self, p, q, XPtest, XQtest, hyper=None):
+        # covar between partial derivatives p and q (default: self.p, q)
+        if q == self.p:
+            raise ValueError('call K11 instead')
+        
+        if hyper == None:
+            hyper = self.get_hyper()
+
+        variance = hyper["var"]
+        lengthscale = hyper["lengthscale"]
+        
+        XP_p = np.reshape(XPtest[:, p], (-1, 1))
+        XP_q = np.reshape(XPtest[:, q], (-1, 1))
+        diff_p = XP_p - XQtest[:, p]
+        diff_q = XP_q - XQtest[:, q]
+        
+        sqdist = sq_dist(XPtest, XQtest)
+   
+        K_pq = (variance/(lengthscale**4)) * (diff_p * diff_q) * np.exp(-0.5 * sqdist / (lengthscale**2))
+        return K_pq
+
+    def joint_MVN(self, p, q, XPtest, XQtest): # give the prior joint distribution of gp and derivative
+        N = self.X.shape[0]
+        M = XPtest.shape[0]
+        S = XQtest.shape[0]
+
+        if len(XPtest.shape) == 1:  # 1d
+            XPtest = np.reshape(XPtest, (-1, self.X.shape[1]))
+        
+        if len(XQtest.shape) == 1:  # 1d
+            XQtest = np.reshape(XQtest, (-1, self.X.shape[1]))
 
         K = self.cov_RBF(self.X, self.X)
-        K_11 = self.K11(Xtest)
-        K_01 = self.K01(Xtest)
+        K_01 = self.K01(XPtest)
         K_10 = K_01.T
-        up = np.hstack([K, K_01])
-        down = np.hstack([K_10, K_11])
-        joint_cov = np.vstack([up, down])
-        return np.zeros((M+N, 1)), joint_cov
+        K_11 = self.K11(XPtest)
+        
+        K_02 = self.K01(XQtest)
+        K_20 = K_02.T
+        K_22 = self.K11(XQtest)
+        
+        K_12 = self.Kpq(p, q, XPtest, XQtest)
+        K_21 = K_12.T
+     
+        up = np.hstack([K, K_01, K_02])
+        mid = np.hstack([K_10, K_11, K_12])
+        down = np.hstack([K_20, K_21, K_22])
+        joint_cov = np.vstack([up, mid, down])
+        return np.zeros((M+N+S, 1)), joint_cov
+    
+    
+    def joint_MVN(self, p, q, XPtest, XQtest): # give the prior joint distribution of gp and derivative
+        N = self.X.shape[0]
+        M = XPtest.shape[0]
+        S = XQtest.shape[0]
+
+        if len(XPtest.shape) == 1:  # 1d
+            XPtest = np.reshape(XPtest, (-1, self.X.shape[1]))
+        
+        if len(XQtest.shape) == 1:  # 1d
+            XQtest = np.reshape(XQtest, (-1, self.X.shape[1]))
+
+        K = self.cov_RBF(self.X, self.X)
+        K_01 = self.K01(XPtest)
+        K_10 = K_01.T
+        K_11 = self.K11(XPtest)
+        
+        K_02 = self.K01(XQtest)
+        K_20 = K_02.T
+        K_22 = self.K11(XQtest)
+        
+        K_12 = self.Kpq(p, q, XPtest, XQtest)
+        K_21 = K_12.T
+     
+        up = np.hstack([K, K_01, K_02])
+        mid = np.hstack([K_10, K_11, K_12])
+        down = np.hstack([K_20, K_21, K_22])
+        joint_cov = np.vstack([up, mid, down])
+        return np.zeros((M+N+S, 1)), joint_cov
+        
+   
 
     def prior_grad(self, Xtest):
         M = Xtest.shape[0]
