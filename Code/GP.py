@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 from scipy.linalg import block_diag
 
 class GP(object):
-    def __init__(self, SearchSpace, Noise=False, noise_delta=1e-4, verbose=0):  # noise_delta=1e-8
+    def __init__(self, SearchSpace, Noise=False, noise_delta=1e-4, verbose=0):  # noise_delta = std (sigma)
         self.noise_delta = noise_delta
         self.noise_upperbound = noise_delta
         self.SearchSpace = SearchSpace
@@ -69,7 +69,7 @@ class GP(object):
         hyper["var"] = hyper_values[1]
         hyper["lengthscale"] = hyper_values[0]
 
-        KK_x_x = self.cov_RBF(self.X, self.X, hyper) + np.eye(len(self.X)) * self.noise_delta
+        KK_x_x = self.cov_RBF(self.X, self.X, hyper) + np.eye(len(self.X)) * self.noise_delta**2
         if np.isnan(KK_x_x).any():  # NaN
             print("NaN in KK_x_x")
         
@@ -131,7 +131,8 @@ class GP(object):
         return meanPrior, covPrior
 
     def fit(self): # find alpha with self.hyper
-        self.K = self.cov_RBF(self.X, self.X, self.hyper) + np.eye(len(self.X)) * self.noise_delta
+        # self.K represents Ky (with noise)
+        self.K = self.cov_RBF(self.X, self.X, self.hyper) + np.eye(len(self.X)) * (self.noise_delta**2)
         if np.isnan(self.K).any():  # NaN
             print("NaN in K")
         self.L = scipy.linalg.cholesky(self.K, lower=True)

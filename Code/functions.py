@@ -27,21 +27,80 @@ class Kean:
 
 
 class Shubert:
-    def __init__(self):
+    def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
-        self.bounds = {"x": (-3, 1), "y": (-3, 1)}
+        self.bounds = {"x": (-1, 1), "y": (-1, 1)}
         self.name = "Shubert"
-
+        self.noise = noise
+        self.noise_std = noise_std
+        
     def func(self, coord):
+        if coord.ndim == 1:
+            coord = coord[np.newaxis, :]
+                        
+        X1 = coord[:, 0]
+        X2 = coord[:, 1]
+        n = coord.shape[0]
+        
         out_0 = 0
         out_1 = 0
-        for i in range(5):
-            out_0 += (i + 1) * np.cos((i + 2) * coord[0] + (i + 1))
-        for i in range(5):
-            out_1 += (i + 1) * np.sin((i + 2) * coord[1] + (i + 1))
-        return (out_0 * out_1 + 220) / 200
+        for i in range(1, 6):
+            out_0 += i * np.cos((i + 1) * X1 + i)
+        for i in range(1, 6):
+            out_1 += i * np.cos((i + 1) * X2 + i)
+        return out_0 * out_1
 
 
+    
+class Rosenbrock:
+    def __init__(self, noise=False, noise_std=0):
+        self.input_dim = 2
+        self.bounds = {
+            "x": (-5, 10),
+            "y": (-5, 10),
+        }
+        self.name = "Rosenbrock"
+        self.noise = noise
+        self.noise_std = noise_std
+
+    def func(self, coord):
+        if coord.ndim == 1:
+            coord = coord[np.newaxis, :]
+                        
+        X1 = coord[:, 0]
+        X2 = coord[:, 1]
+        n = coord.shape[0]
+        
+        return np.sum(100.0 * (coord[1:] - coord[:-1] ** 2.0) ** 2.0 + (1 - coord[:-1]) ** 2.0, axis=0)
+    
+    
+class sincos:
+    def __init__(self, noise=False, noise_std=0):
+        self.input_dim = 2
+        self.bounds = {"x": (2, 10), "y": (2, 10)}
+        self.name = "sincos"
+        self.noise = noise
+        self.noise_std = noise_std
+
+    def func(self, coord):
+        if coord.ndim == 1:
+            coord = coord[np.newaxis, :]
+        X1 = coord[:, 0]
+        X2 = coord[:, 1]
+        n = coord.shape[0]
+        #  std = 0.05*self.findSdev()
+        noise_val = 0
+        if self.noise == True:
+            noise_val = np.random.normal(0, self.noise_std, n)
+        else:
+            noise_val = 0
+        
+#         print('X1', X1)
+#         print('X2', X2)
+#         out = ((np.sin(X1) * np.cos(X2)) / np.sqrt(X1 * X2)) + noise_val
+        out = np.sin(X1) * np.cos(X2) + noise_val
+        return out
+    
 class Branin:
     def __init__(self):
         self.input_dim = 2
@@ -189,23 +248,7 @@ class Ackley:
         )
 
 
-class Rosenbrock:
-    def __init__(self):
-        self.input_dim = 6
-        self.bounds = {
-            "x": (-5, 10),
-            "y": (-5, 10),
-            "z": (-5, 10),
-            "a": (-5, 10),
-            "b": (-5, 10),
-            "c": (-5, 10),
-        }
-        self.name = "Rosenbrock"
 
-    def func(self, coord):
-        return -1 * sum(
-            100.0 * (coord[1:] - coord[:-1] ** 2.0) ** 2.0 + (1 - coord[:-1]) ** 2.0
-        )
 
 
 class Ackley_6:
@@ -453,7 +496,6 @@ class sin_add:
             return fval
 
 
-
 class sincos:
     def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
@@ -474,5 +516,9 @@ class sincos:
             noise_val = np.random.normal(0, self.noise_std, n)
         else:
             noise_val = 0
-        out = ((np.sin(X1) * np.cos(X2)) / np.sqrt(X1 * X2)) + noise_val
+        
+#         print('X1', X1)
+#         print('X2', X2)
+#         out = ((np.sin(X1) * np.cos(X2)) / np.sqrt(X1 * X2)) + noise_val
+        out = np.sin(X1) * np.cos(X2) + noise_val
         return out
