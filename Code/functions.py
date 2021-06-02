@@ -227,7 +227,7 @@ class Hartmann_6:
         return -y[0]
 
 
-class Ackley:
+class Ackley_2:
     def __init__(self):
         self.input_dim = 2
         self.bounds = {"x": (-32.768, 32.768), "y": (-32.768, 32.768)}
@@ -246,8 +246,7 @@ class Ackley:
             + 20
             + math.e
         )
-
-
+    
 
 
 
@@ -458,9 +457,26 @@ class cos:
         return fval
 
 
+class Ackley_1:
+    def __init__(self, noise=False, noise_std=0):
+        np.random.seed(0)
+        self.input_dim = 1
+        self.bounds = {"x": (-4, 4)}
+        self.name = "Ackley_1d"
+        self.noise = noise
+        self.noise_std = noise_std
 
+    def func(self, coord):
+        x = np.asarray(coord).reshape((-1, 1))
+        fx = np.reshape(-20 * np.exp(-0.2*np.sqrt(x**2)) - np.exp(np.cos(2*np.pi*x)) + 20 + np.e, (-1, 1))
+        if self.noise:
+            return fx + np.random.normal(0, self.noise_std, size=(x.shape[0], 1))
+        else:
+            return fx
+
+    
 class sin:
-    def __init__(self, noise=True, noise_std=0):
+    def __init__(self, noise=False, noise_std=0):
         np.random.seed(0)
         self.input_dim = 1
         self.bounds = {"x": (-1, 15)}
@@ -478,7 +494,7 @@ class sin:
             return fval
 
 class sin_add:
-    def __init__(self, noise=True, noise_std=0):
+    def __init__(self, noise=False, noise_std=0):
         np.random.seed(0)
         self.input_dim = 1
         self.bounds = {"x": (-1, 15)}

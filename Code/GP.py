@@ -43,7 +43,7 @@ class GP(object):
         self.y = np.vstack((self.y, np.reshape(y, (y.shape[0], -1))))
         self.fitted = False
 
-    def set_hyper(self, lengthscale, variance):
+    def set_hyper(self, lengthscale=1, variance=1):
         self.hyper["lengthscale"] = lengthscale
         self.hyper["var"] = variance
 
@@ -66,9 +66,9 @@ class GP(object):
     def log_lik(self, hyper_values):
         # min the -ve loglk for the estimation of ls and var
         hyper = {}
-        hyper["var"] = hyper_values[1]
         hyper["lengthscale"] = hyper_values[0]
-
+        hyper["var"] = hyper_values[1]
+        
         KK_x_x = self.cov_RBF(self.X, self.X, hyper) + np.eye(len(self.X)) * self.noise_delta**2
         if np.isnan(KK_x_x).any():  # NaN
             print("NaN in KK_x_x")
@@ -105,8 +105,8 @@ class GP(object):
         if self.verbose:
             print("estimated lengthscale and variance = ", Res.x)
         ls, var = Res.x
-        # print('ls', ls)
-        # print('var', var)
+#         print('ls', ls)
+#         print('var', var)
         self.set_hyper(ls, var) # keep the original paramters
         return Res.x
     

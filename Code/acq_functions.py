@@ -4,7 +4,6 @@ from scipy.stats import norm
 
 class acq_functions(object):
     # This class has all the desired acq_functions
-
     def __init__(self, acq_name, bounds, count):
         # The implemented acq functions
         Acq_names = ["PI", "EI", "gp_ucb"]
