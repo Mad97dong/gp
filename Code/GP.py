@@ -36,6 +36,13 @@ class GP(object):
         self.X = X
         self.y = np.reshape(y, (self.X.shape[0], 1)) # the standardised output N(0,1)
         self.fitted = False
+        
+    def clear(self):
+        self.X = None
+        self.y = None
+        self.fitted = False
+        self.hyper["var"] = 1
+        self.hyper["lengthscale"] = 1
 
     def add_data(self, X, y): # X [N*d], y [N*1]
         assert len(y.shape) != 0
@@ -87,7 +94,7 @@ class GP(object):
 
     def optimize(self): # Optimise the GP kernel hyperparameters
         opts = {"maxiter": 200, "maxfun": 200, "disp": False}
-        bounds = np.asarray([[1e-2, 1], [0.05, 1.5]])  # bounds on Lenghtscale and kernal Variance
+        bounds = np.asarray([[1e-3, 20], [0.05, 1e3]])  # bounds on Lenghtscale and kernal Variance
 
         W = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(10, 2))
         loglik = np.array([])
@@ -148,6 +155,7 @@ class GP(object):
         Xtest: the testing points  [M*d]
         Returns: posteior mean, posteior var
         """
+        assert self.fitted == True
         if isOriScale:
             Xtest = self.Xscaler.transform(Xtest)
 

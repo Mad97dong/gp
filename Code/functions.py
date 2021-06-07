@@ -5,10 +5,12 @@ from numpy.matlib import *
 from scipy.stats import multivariate_normal
 
 class Kean:
-    def __init__(self):
+    def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
         self.bounds = {"x": (-4, 4), "y": (-4, 4)}
         self.name = "Kean"
+        self.noise = noise
+        self.noise_std = noise_std
 
     def func(self, coord):
         if coord.ndim == 1:
@@ -22,14 +24,21 @@ class Kean:
                 - 2 * (np.cos(X1) ** 2) * (np.cos(X2) ** 2)
             )
         ) / np.sqrt(1 * X1 ** 2 + 1.5 * X2 ** 2)
-        out = np.squeeze(out)
-        return out * 1.5
+        
+        n = coord.shape[0]
+        noise_val = 0
+        if self.noise == True:
+            noise_val = np.random.normal(0, self.noise_std, n)
+        else:
+            noise_val = 0
+            
+        return - out * 1.5 + noise_val
 
 
 class Shubert:
     def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
-        self.bounds = {"x": (-1, 1), "y": (-1, 1)}
+        self.bounds = {"x": (-10, 10), "y": (-10, 10)}
         self.name = "Shubert"
         self.noise = noise
         self.noise_std = noise_std
@@ -74,32 +83,7 @@ class Rosenbrock:
         return np.sum(100.0 * (coord[1:] - coord[:-1] ** 2.0) ** 2.0 + (1 - coord[:-1]) ** 2.0, axis=0)
     
     
-class sincos:
-    def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 2
-        self.bounds = {"x": (2, 10), "y": (2, 10)}
-        self.name = "sincos"
-        self.noise = noise
-        self.noise_std = noise_std
 
-    def func(self, coord):
-        if coord.ndim == 1:
-            coord = coord[np.newaxis, :]
-        X1 = coord[:, 0]
-        X2 = coord[:, 1]
-        n = coord.shape[0]
-        #  std = 0.05*self.findSdev()
-        noise_val = 0
-        if self.noise == True:
-            noise_val = np.random.normal(0, self.noise_std, n)
-        else:
-            noise_val = 0
-        
-#         print('X1', X1)
-#         print('X2', X2)
-#         out = ((np.sin(X1) * np.cos(X2)) / np.sqrt(X1 * X2)) + noise_val
-        out = np.sin(X1) * np.cos(X2) + noise_val
-        return out
     
 class Branin:
     def __init__(self):
@@ -228,26 +212,27 @@ class Hartmann_6:
 
 
 class Ackley_2:
-    def __init__(self):
+    def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
         self.bounds = {"x": (-32.768, 32.768), "y": (-32.768, 32.768)}
-        self.name = "Ackley"
+        self.bounds = {"x": (-4, 4), "y": (-4, 4)}
+        self.name = "Ackley_2d"
+        self.noise = noise
+        self.noise_std = noise_std
 
     def func(self, coord):
-        firstSum = 0.0
-        secondSum = 0.0
-        for c in coord:
-            firstSum += c ** 2.0
-            secondSum += math.cos(2.0 * math.pi * c)
-        n = float(len(coord))
-        return (
-            20.0 * math.exp(-0.2 * math.sqrt(firstSum / n))
-            - math.exp(secondSum / n)
-            + 20
-            + math.e
-        )
-    
-
+        x = np.asarray(coord).reshape((-1, self.input_dim))
+        
+        firstMean = np.array([np.mean(k**2) for k in x]).reshape(-1, 1)
+        secondMean = np.array([np.mean(np.cos(2*np.pi*k)) for k in x]).reshape(-1, 1)
+  
+        fx = np.reshape(-20 * np.exp(-0.2*np.sqrt(firstMean)) - np.exp(secondMean) + 20 + np.e, (-1, 1))
+        if self.noise:
+            return fx + np.random.normal(0, self.noise_std, size=(x.shape[0], 1))
+        else:
+            return fx
+        
+        
 
 
 class Ackley_6:

@@ -192,5 +192,28 @@ class GP_grad(GP):
             print('XQtest', XQtest)
             raise ValueError('covariance not positive semidefinite')
         return meanPost, covPost
-        
-        
+    
+    def grad_mean(self, x): # given a fit gp, return the posterior mean of gradient at x
+#         assert self.dim == 2
+        assert self.fitted == True
+        # partial x1
+        self.set_p(0)
+        m1, v1 = self.posterior_grad(x)
+        s1 = np.sqrt(np.diag(v1))
+        m1 = np.squeeze(m1)
+
+        # partial x2
+        self.set_p(1)
+        m2, v2 = self.posterior_grad(x)
+        s2 = np.sqrt(np.diag(v2))
+        m2 = np.squeeze(m2)
+        return np.squeeze(np.vstack([m1, m2]))
+
+    def grad_sample(self, x):
+        assert self.fitted == True
+#         assert gp.dim == 2
+        MM, VV = self.posterior_joint_grad(0, 1, x, x)
+        mean = np.squeeze(MM)
+        covariance = np.squeeze(VV)
+        return np.squeeze(np.random.multivariate_normal(mean, covariance, 1))
+
