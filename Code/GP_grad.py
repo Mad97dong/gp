@@ -18,45 +18,49 @@ def sq_dist(x1, x2): # x1: N*d, x2: M*d  --> N*d
 def diff(x1, x2): # x1: N*1, x2: M*1
     return x1 - np.squeeze(x2)
 
+
 class GP_grad(GP):
-    def __init__(self, SearchSpace, Noise=False, noise_delta=1e-4, p=0, verbose=0):
-        super().__init__(SearchSpace, Noise, noise_delta, verbose)
+    def __init__(self, B, Noise=False, noise_delta=1e-4, p=0, verbose=0, compress=False):
+        super().__init__(B, Noise, noise_delta, verbose, compress)
         self.p = p  # partial derivative along which the grad GP (0 to N-1)
 
     def set_p(self, p=0):
         self.p = p
+    
+    def K11(self, Xt, hyper=None):
+        if hyper == None:
+            hyper = self.get_hyper()
+        
+        v = hyper["var"]
+        l = hyper["lengthscale"]
+        
+        Xt = self._resize(Xt)
+        assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
+        Xt_p = np.reshape(Xt[:, self.p], (-1, 1))
 
-    def K11(self, Xtest, hyper=None): # RBF Kernel
+        sqdist = sq_dist(Xt, Xt)
+        sqdist_pp = sq_dist(Xt_p, Xt_p)
+        return (v/(l**2)) * (1 - sqdist_pp / (l**2)) * np.exp(-0.5 * sqdist / (l**2))
+
+    def K01(self, Xt, hyper=None):
         if hyper == None:
             hyper = self.get_hyper()
 
-        variance = hyper["var"]
-        lengthscale = hyper["lengthscale"]
+        v = hyper["var"]
+        l = hyper["lengthscale"]
+        
+        Xt = self._resize(Xt)
+        assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
+        
+        Xt_p = Xt[:, self.p]
+        _X_p = np.reshape(self._X[:, self.p], (-1, 1))
 
-        Xtest_p = np.reshape(Xtest[:, self.p], (-1, 1))
-
-        sqdist = sq_dist(Xtest, Xtest)
-        sqdist_pp = sq_dist(Xtest_p, Xtest_p)
-        return (variance/(lengthscale**2)) * (1 - sqdist_pp / (lengthscale**2)) * np.exp(-0.5 * sqdist / (lengthscale**2))
-
-
-    def K01(self, Xtest, hyper=None):
-        if hyper == None:
-            hyper = self.get_hyper()
-
-        variance = hyper["var"]
-        lengthscale = hyper["lengthscale"]
-
-        Xtest_p = Xtest[:, self.p]
-        X_p = np.reshape(self.X[:, self.p], (-1, 1))
-
-        sqdist = sq_dist(self.X, Xtest)
-#         print(sqdist.shape)
-        diff = X_p - Xtest_p
-        K_01 = (variance/(lengthscale**2)) * diff * np.exp(-0.5 * sqdist / (lengthscale**2))
+        sqdist = sq_dist(self._X, Xt)
+        diff = _X_p - Xt_p
+        K_01 = (v/(l**2)) * diff * np.exp(-0.5 * sqdist / (l**2))
         return K_01
 
-    def Kpq(self, p, q, XPtest, XQtest, hyper=None):
+    def Kpq(self, p, q, XPt, XQt, hyper=None):
         # covar between partial derivatives p and q (default: self.p, q)
         if p == q:
             raise ValueError('call K11 instead')
@@ -67,68 +71,42 @@ class GP_grad(GP):
         variance = hyper["var"]
         lengthscale = hyper["lengthscale"]
         
-        XP_p = np.reshape(XPtest[:, p], (-1, 1))
-        XP_q = np.reshape(XPtest[:, q], (-1, 1))
-        diff_p = XP_p - XQtest[:, p]
-        diff_q = XP_q - XQtest[:, q]
+        XPt = self._resize(XPt)
+        XQt = self._resize(XQt)
+        assert np.all(XPt >= self._B[:, 0]) and np.all(XPt <= self._B[:, 1])
+        assert np.all(XQt >= self._B[:, 0]) and np.all(XQt <= self._B[:, 1])
         
-        sqdist = sq_dist(XPtest, XQtest)
-   
-        K_pq = (variance/(lengthscale**4)) * (diff_p * diff_q) * np.exp(-0.5 * sqdist / (lengthscale**2))
-        return K_pq
-
+        XP_p = np.reshape(XPt[:, p], (-1, 1))
+        XP_q = np.reshape(XPt[:, q], (-1, 1))
+        diff_p = XP_p - XQt[:, p]
+        diff_q = XP_q - XQt[:, q]
+        
+        sqdist = sq_dist(XPt, XQt)
+        return -(variance/(lengthscale**4)) * (diff_p * diff_q) * np.exp(-0.5 * sqdist / (lengthscale**2))
     
-#     def joint_MVN(self, Xtest): # give the joint distribution of gp and partial p
-#         N = self.X.shape[0]
-#         M = Xtest.shape[0]
-
-#         if len(Xtest.shape) == 1:  # 1d
-#             Xtest = np.reshape(Xtest, (-1, self.X.shape[1]))
-
-#         K = self.cov_RBF(self.X, self.X)
-#         K_11 = self.K11(Xtest)
-#         K_01 = self.K01(Xtest)
-#         K_10 = K_01.T
-#         up = np.hstack([K, K_01])
-#         down = np.hstack([K_10, K_11])
-#         joint_cov = np.vstack([up, down])
-#         return np.zeros((M+N, 1)), joint_cov
-
-    def match_shape(self, Xtest):
-#         if self.X == None:
-#             raise ValueError('no self.X in GP')
-
-        # assume self.X defined
-        if len(Xtest.shape) == 1:  # 1d
-            Xtest = np.reshape(Xtest, (-1, self.X.shape[1]))
-        
-        if Xtest.shape[1] != self.X.shape[1]:  # match dimension
-            Xtest = np.reshape(Xtest, (-1, self.X.shape[1]))
-        return Xtest
            
-            
-    def prior_joint_MVN(self, p, q, XPtest, XQtest, full=False): # give the prior joint distribution of gp, partial p & q
+    def prior_joint_MVN(self, p, q, XPt, XQt, full=False): # give the prior joint distribution of gp, partial p & q
         N = self.X.shape[0]
-        M = XPtest.shape[0]
-        S = XQtest.shape[0]
+        M = XPt.shape[0]
+        S = XQt.shape[0]
         coord = self.p
         
-        XPtest = self.match_shape(XPtest)
-        XQtest = self.match_shape(XQtest)
+        _XPt = self.compress(self._resize(XPt))
+        _XQt = self.compress(self._resize(XQt))
 
-        Ky = self.cov_RBF(self.X, self.X) + np.eye(len(self.X)) * (self.noise_delta**2)
+        Ky = self.cov_RBF(self._X, self._X) + np.eye(len(self._X)) * (self.noise_delta**2)
 
         self.set_p(p)
-        K_01 = self.K01(XPtest)
+        K_01 = self.K01(_XPt)
         K_10 = K_01.T
-        K_11 = self.K11(XPtest)
+        K_11 = self.K11(_XPt)
         
         self.set_p(q)
-        K_02 = self.K01(XQtest)
+        K_02 = self.K01(_XQt)
         K_20 = K_02.T
-        K_22 = self.K11(XQtest)
+        K_22 = self.K11(_XQt)
         
-        K_12 = self.Kpq(p, q, XPtest, XQtest)
+        K_12 = self.Kpq(p, q, _XPt, _XQt)
         K_21 = K_12.T
         
         self.set_p(coord) # set the self.p back
@@ -142,78 +120,153 @@ class GP_grad(GP):
             return joint_cov
         else:
             return K_01, K_02, K_11, K_22, K_12
+        
+        
+    def prior_full_MVN(self, coord, Xt): # give the prior joint distribution of gp, coord = [0, 1, 2, ...]
+        if coord == 'full':
+            coord = list(np.arange(self.dim))
+        assert len(coord) == len(Xt)
+        p_ = self.p
+        
+        _Xt = [self.compress(self._resize(data)) for data in Xt]
+        n = len(coord)
+        
+        # Ky
+        Ky = self.cov_RBF(self._X, self._X) + np.eye(len(self._X)) * (self.noise_delta**2)
+        
+        # k
+        K_0d = []
+        for i in range(n):
+            self.set_p(coord[i])
+            K_0d.append(self.K01(_Xt[i]))
+        k_ = np.hstack(K_0d)    
+        
+        ## K square
+        K_ = []
+        for i in range(n):
+            self.set_p(coord[i])
+            K_1d = []
+            for j in range(n):
+                if j == i:
+                    K_1d.append(self.K11(_Xt[i]))
+                else:
+                    K_1d.append(self.Kpq(coord[i], coord[j], _Xt[i], _Xt[j]).T)
+            K_.append(np.vstack(K_1d))
+        K_ = np.hstack(K_)
+        
+        self.set_p(p_) # set the self.p back
+        return k_, K_
 
-    def prior_grad(self, Xtest):
-        M = Xtest.shape[0]
-        Xtest = self.match_shape(Xtest)
-        K_11 = self.K11(Xtest, Xtest)
+    def prior_grad(self, Xt):
+        _Xt = self.compress(self._resize(Xt))
+        
+        M = _Xt.shape[0]
+        K_11 = self.K11(_Xt, _Xt)
         return np.zeros((M, 1)), K_11
 
-
-    def posterior_grad(self, Xtest):
+    def posterior_grad(self, Xt):
         """
-        Xtest: the testing points  [M*d]
+        Xt: the testing points  [M*d]
         Returns: posterior mean, posterior var of grad GP
         """
-        Xtest = self.match_shape(Xtest)
+        assert self.fitted == True
+        _Xt = self.compress(self._resize(Xt))
         self.alpha = self.fit()
-        # assert self.K != None
-        # assert self.L != None
-        K_01 = self.K01(Xtest)
+        K_01 = self.K01(_Xt)
 
         meanPost = np.reshape(np.dot(K_01.T, self.alpha), (-1, 1))
         v = np.linalg.solve(self.L, K_01)
-        covPost = self.K11(Xtest) - np.dot(v.T, v)
-        # var = np.reshape(np.diag(var), (-1, 1))
+        covPost = self.K11(_Xt) - np.dot(v.T, v)
         return meanPost, covPost
     
-    def posterior_joint_grad(self, p, q, XPtest, XQtest): 
+    def posterior_joint_grad(self, p, q, XPt, XQt): 
         """
-        Xtest: the testing points  [M*d]
+        Xt: the testing points  [M*d]
         Returns: posterior mean, posterior var of the full gradient (partial p & q) of GP
         """
-        XPtest = self.match_shape(XPtest)
-        XQtest = self.match_shape(XQtest)
+        assert self.fitted == True
         
-        K_01, K_02, K_11, K_22, K_12 = self.prior_joint_MVN(p, q, XPtest, XQtest)
+        K_01, K_02, K_11, K_22, K_12 = self.prior_joint_MVN(p, q, XPt, XQt) # compress in prior_joint_MVN
         k_ = np.hstack([K_01, K_02])
         K_ = np.vstack([np.hstack([K_11, K_12]), np.hstack([K_12.T, K_22])])
-        
-        self.alpha = self.fit()
+
         # posterior mean
         meanPost = np.reshape(np.dot(k_.T, self.alpha), (-1, 1))
-        
         # posterior covariance
         v = np.linalg.solve(self.L, k_)
         covPost = K_ - np.dot(v.T, v)
         if np.linalg.det(covPost) < 0:
             print('Cov: ', covPost)
-            print('XPtest', XPtest)
-            print('XQtest', XQtest)
-            raise ValueError('covariance not positive semidefinite')
+            print('covariance not positive semidefinite')
+#             raise ValueError('covariance not positive semidefinite')
         return meanPost, covPost
     
-    def grad_mean(self, x): # given a fit gp, return the posterior mean of gradient at x
-#         assert self.dim == 2
+    def posterior_full_grad(self, coord, Xt): 
         assert self.fitted == True
-        # partial x1
-        self.set_p(0)
-        m1, v1 = self.posterior_grad(x)
-        s1 = np.sqrt(np.diag(v1))
-        m1 = np.squeeze(m1)
+        if coord == 'full':
+            coord = list(np.arange(self.dim))
+        assert len(coord) == len(Xt)
+        
+        Xt = [self._resize(data) for data in Xt] # compress in prior_full_MVN
+        k_, K_ = self.prior_full_MVN(coord, Xt)
 
-        # partial x2
-        self.set_p(1)
-        m2, v2 = self.posterior_grad(x)
-        s2 = np.sqrt(np.diag(v2))
-        m2 = np.squeeze(m2)
-        return np.squeeze(np.vstack([m1, m2]))
+        # posterior mean
+        meanPost = np.reshape(np.dot(k_.T, self.alpha), (-1, 1))
+        # posterior covariance
+        v = np.linalg.solve(self.L, k_)
+        covPost = K_ - np.dot(v.T, v)
+        if np.linalg.det(covPost) < 0:
+            print('Cov not positive semidefinite: ', covPost)
+
+#             raise ValueError('covariance not positive semidefinite')
+        return meanPost, covPost
+    
+    def _unnormal_grad(self, g):
+        if self.isCompressed:
+            m, v = self.normalize
+            return v*g / (self.B[:, 1] - self.B[:, 0])
+        else:
+            return g
+     
+    def _normal_grad(self, g):
+        if self.isCompressed:
+            m, v = self.normalize
+            return g * (self.B[:, 1] - self.B[:, 0]) / v
+        else:
+            return g
+    
+    def grad(self, x): # given a fit gp, return the posterior mean of gradient at x
+        assert self.fitted == True
+        if x.ndim == 1:
+            x = x.reshape((1, -1))
+        assert x.shape[1] == self.dim
+        x = self._resize(x)
+        
+        p = self.p 
+        
+        M = np.zeros((x.shape[0], self.dim))
+        for d in range(self.dim):
+            self.set_p(d)
+            md, vd = self.posterior_grad(x)
+            md = np.reshape(md, (-1, 1))
+            M[:, d] = md
+            
+        self.set_p(p)
+        return M
 
     def grad_sample(self, x):
         assert self.fitted == True
-#         assert gp.dim == 2
-        MM, VV = self.posterior_joint_grad(0, 1, x, x)
+        if x.ndim == 1:
+            x = x.reshape((1, -1))
+        assert x.shape[1] == self.dim
+        x = self._resize(x)
+        
+#         MM, VV = self.posterior_joint_grad(0, 1, x, x)
+        MM, VV = self.posterior_full_grad('full', self.dim*[x])
         mean = np.squeeze(MM)
         covariance = np.squeeze(VV)
-        return np.squeeze(np.random.multivariate_normal(mean, covariance, 1))
+        if self.dim == 1:
+            return np.random.normal(mean, covariance, 1)
+        else:
+            return np.random.multivariate_normal(mean, covariance, 1)
 
