@@ -110,7 +110,7 @@ class Shubert_2:
         self.input_dim = 2
         
         self.bounds = {"x": (-5.12, 5.12), "y": (-5.12, 5.12)}
-        self.bounds = {"x": (-1, 3), "y": (-1, 3)}
+        self.bounds = {"x": (-1, 2), "y": (-1, 2)}
         self.name = "Shubert"
         self.noise = noise
         self.noise_std = noise_std
@@ -616,7 +616,7 @@ class Levy:
 class Rastrigin:
     def __init__(self, noise=False, noise_std=0, dim=2):
         self.input_dim = dim
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-3, 4)]))
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5.12, 5.12)]))
         self.lb = -5.12 * np.ones(dim)
         self.ub = 5.12 * np.ones(dim)
         self.name = 'Rastrigin'

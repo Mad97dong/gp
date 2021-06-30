@@ -25,6 +25,7 @@ class GD:
         self.history_full_w = [w] # for momentum accelerated
         self.minSofar = f(w)
         self.contFail = 0
+        self.stop = 7
         
         # for adam
         self.mt = 0
@@ -32,6 +33,7 @@ class GD:
         
         # for BFGS
         self.H = np.eye(gp.dim)
+
         
     def _grad(self):
         return self.gp.grad(self.w)
@@ -92,8 +94,9 @@ class GD:
     
     def update_sample(self, y_best, lr=0.5):
         N = 1
-        loop = 7
+        loop = 995
         lr_decay = 1
+        delta = np.abs(1e-2 * self.minSofar)
 #         if len(self.history_w) > 1:
 #             if np.sign(self.f(self.history_w[-1]) - self.f(self.history_w[-2])) > 0:
 #                 lr_decay = 0.95
@@ -102,13 +105,65 @@ class GD:
         for i in range(loop):
             grad_ = [self.gp.grad_sample(self.w) for i in range(N)]
 #             lr = lr * lr_decay
-#             self.w, argmaxScore = self._pick_next_point(grad_, lr, y_best) # GD
-            self.w, argmaxScore = self._pick_next_bfgs(grad_, lr, y_best) # BFGS
+            self.w, argmaxScore = self._pick_next_point(grad_, lr, y_best) # GD
 #             self.w, self.mt, self.vt, argmaxScore = self._pick_next_point(grad_, lr, y_best)
             self.history_full_w.append(self.w)
             m, v = self.gp.posterior_full_grad('full', self.gp.dim*[self.w])
-            if (np.abs(m) < 1*v).any():
+            if (np.abs(m) < 2*v).any():
                 break
+                
+        print('GD loop: ', i)
+            
+        self.history_w.append(self.w)
+        
+        # consecutive fail < 10
+        if self.f(self.w) < self.minSofar - delta:
+            self.contFail = 0
+        else:
+            self.contFail += 1
+            
+        print('consecutive fail: ', self.contFail)
+        
+        self.minSofar = min(self.f(self.w), self.minSofar)
+        
+        # Max GD steps
+        if len(self.history_full_w) > 555:
+            self.stop = 3
+            
+        return self.w, -grad_[argmaxScore]
+    
+    
+    
+    def update_bfgs(self, y_best, lr=0.1):
+        loop = 15
+        clipnorm = 1
+        self.H = np.eye(self.gp.dim)
+
+        for i in range(loop):
+            gt = self.gp.grad_sample(self.w)
+#             if LA.norm(gt) > clipnorm:
+#                 gt = gt*clipnorm/LA.norm(gt)
+            
+            wt = self.w.reshape(self.gp.dim, 1)
+            wnew = np.clip(wt - lr*self.H@gt.reshape(self.gp.dim, 1), self.lb.reshape(self.gp.dim, 1), self.ub.reshape(self.gp.dim, 1))
+            
+            # update H
+            st = wnew - wt
+            gnew = self.gp.grad_sample(np.squeeze(wnew)).reshape(self.gp.dim, 1)
+
+#             if LA.norm(gnew) > clipnorm:
+#                 gnew = gnew*clipnorm/LA.norm(gnew)
+
+            yt = gnew - gt.reshape(self.gp.dim, 1)
+
+            rho = 1/ (yt.T@st)
+            
+            self.w = np.squeeze(wnew)
+            self.history_full_w.append(self.w)
+            m, v = self.gp.posterior_full_grad('full', self.gp.dim*[self.w])
+            if (np.abs(m) < 2*v).any():
+                break
+            self.H = (np.eye(self.gp.dim) - rho*st@yt.T)@self.H@(np.eye(self.gp.dim) - rho*yt@st.T) + rho*st@st.T
      
         print('GD loop: ', i)
         self.history_w.append(self.w)
@@ -120,35 +175,4 @@ class GD:
             self.contFail += 1
         
         self.minSofar = min(self.f(self.w), self.minSofar)
-        return self.w, -grad_[argmaxScore]
-    
-    
-    def _pick_next_bfgs(self, grad_, lr, y_best):
-        assert (self.history_full_w[-1] == self.w).all()
-        clipnorm = 1
-        clip_grad_ = []
-        for g in grad_:
-            if LA.norm(g) > clipnorm:
-                clip_grad_.append(g*clipnorm/LA.norm(g))
-            else:
-                clip_grad_.append(g)
-                
-        W = [np.clip(self.w.T - lr*self.H@g.T, self.lb, self.ub) for g in clip_grad_]
-        Score = np.array([self.gp.PI(w, y_best) for w in W])
-        argmaxScore = np.argmax(Score)
-        
-        # update H
-        w = W[argmaxScore]
-        st = w - self.w.T
-        
-        gnew = self.gp.grad_sample(w).T
-        if LA.norm(gnew) > clipnorm:
-            gnew = gnew*clipnorm/LA.norm(g)
-
-        yt = gnew - clip_grad_[argmaxScore].T
-        
-        rho = 1/ (np.dot(yt, st))
-        V = np.eye(gp.self.dim) - rho*st@yt.T
-        self.H = V@self.H@V.T + rho*st@st.T
-        return W[argmaxScore], argmaxScore
-    
+        return self.w, - np.squeeze(gnew)

@@ -9,6 +9,7 @@ from scipy.linalg import block_diag
 from numpy import linalg as LA
 from scipy.stats import norm
 from utils import *
+from torch.quasirandom import SobolEngine
 
 class GP(object):
     def __init__(self, B, Noise=False, noise_delta=1e-4, verbose=0, compress=False):  # noise_delta = std (sigma)
@@ -98,8 +99,8 @@ class GP(object):
         variance = hyper["var"]
         lengthscale = hyper["lengthscale"]
         
-        assert np.all(x1 >= self._B[:, 0]) and np.all(x1 <= self._B[:, 1])
-        assert np.all(x2 >= self._B[:, 0]) and np.all(x2 <= self._B[:, 1])
+#         assert np.all(x1 >= self._B[:, 0]) and np.all(x1 <= self._B[:, 1])
+#         assert np.all(x2 >= self._B[:, 0]) and np.all(x2 <= self._B[:, 1])
 
         assert x1.shape[1] == x2.shape[1] # 2d
 
@@ -196,7 +197,7 @@ class GP(object):
 
     def ucb(self, x, b): # ucb at one point x, b for hyper, x:: 1*d
         x = x.reshape(1, -1)
-        assert np.all(x >= self.B[:, 0]) and np.all(x <= self.B[:, 1])
+#         assert np.all(x >= self.B[:, 0]) and np.all(x <= self.B[:, 1])
         
         mu, covar = self.posterior(x)
         mu = np.squeeze(mu)
@@ -264,4 +265,18 @@ class GP(object):
                                 bounds=self.B, 
                                 method="L-BFGS-B") # L-BFGS-B
         return Res.x, self.EI(Res.x, y_best)
+    
+    def Thompson_sample(self):
+        seed = np.random.randint(int(1e6))
+        sobol = SobolEngine(self.dim, scramble=True, seed=seed)
+        Grid = from_unit_cube(np.array(sobol.draw(10000)), self.B[:, 0], self.B[:, 1])
+        mu, covar = self.posterior(Grid)
+        mu = np.squeeze(mu)
+        s = np.sqrt(np.diag(covar))
+
+        L = np.linalg.cholesky(covar + 1e-6*np.eye(10000)) # LL^T = Sigma (posterior covariance)
+        f_post = mu.reshape(-1,1) + np.dot(L, np.random.normal(size=(10000, 1)))
+        arg_min = np.argmin(f_post)
+        w = Grid[arg_min]
+        return w
     
