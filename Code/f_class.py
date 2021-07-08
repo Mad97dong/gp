@@ -110,7 +110,7 @@ class Shubert_2:
         self.input_dim = 2
         
         self.bounds = {"x": (-5.12, 5.12), "y": (-5.12, 5.12)}
-        self.bounds = {"x": (-1, 2), "y": (-1, 2)}
+        self.bounds = {"x": (-3, 3), "y": (-3, 3)}
         self.name = "Shubert"
         self.noise = noise
         self.noise_std = noise_std
@@ -175,7 +175,7 @@ class Ackley_2:
     def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
 #         self.bounds = {"x": (-32.768, 32.768), "y": (-32.768, 32.768)}
-        self.bounds = {"x": (-4, 4), "y": (-4, 4)} 
+        self.bounds = {"x": (-9, 9), "y": (-9, 9)} 
         self.name = "Ackley_2d"
         self.noise = noise
         self.noise_std = noise_std
@@ -196,7 +196,7 @@ class Ackley_2:
 class Eggholder:
     def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
-        self.bounds = {"x": (-5, 5), "y": (-5, 5)}
+        self.bounds = {"x": (-15, 15), "y": (-15, 15)}
         self.name = "Eggholder"
         self.noise = noise
         self.noise_std = noise_std
@@ -438,8 +438,8 @@ class Alpine:
 
 class Ackley:
     def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 20
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5, 5)])) # -32.768, 32.768
+        self.input_dim = 10
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-1, 10)])) # -32.768, 32.768
         self.name = "Ackley_6"
         self.noise = noise
         self.noise_std = noise_std
@@ -469,7 +469,7 @@ class Ackley:
     
 class Michalewicz:
     def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 2
+        self.input_dim = 10
         self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(0, np.pi)]))
         self.name = "Michalewicz"
         self.noise = noise
@@ -528,7 +528,7 @@ class Schwefel:
     
 class Rosenbrock:
     def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 100
+        self.input_dim = 20
         self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5, 10)]))
         self.name = 'Rosenbrock'
         self.noise = noise
@@ -555,8 +555,8 @@ class Rosenbrock:
     
 class Griewank:
     def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 20
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-10, 10)]))
+        self.input_dim = 10
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-85, -80)]))
         self.name = 'Griewank'
         self.noise = noise
         self.noise_std = noise_std
@@ -584,9 +584,9 @@ class Griewank:
 class Levy:
     def __init__(self, noise=False, noise_std=0, dim=2):
         self.input_dim = dim
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5, 10)]))
-        self.lb = -5 * np.ones(dim)
-        self.ub = 10 * np.ones(dim)
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(0, 10)]))
+        self.lb = -0 * np.ones(dim)
+        self.ub = 11 * np.ones(dim)
         self.name = 'Levy'
         self.noise = noise
         self.noise_std = noise_std
@@ -616,9 +616,9 @@ class Levy:
 class Rastrigin:
     def __init__(self, noise=False, noise_std=0, dim=2):
         self.input_dim = dim
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5.12, 5.12)]))
-        self.lb = -5.12 * np.ones(dim)
-        self.ub = 5.12 * np.ones(dim)
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-1, 1)]))
+        self.lb = -1.0 * np.ones(dim)
+        self.ub = 1.0 * np.ones(dim)
         self.name = 'Rastrigin'
         self.noise = noise
         self.noise_std = noise_std
@@ -642,6 +642,9 @@ class Rastrigin:
             val += coord[:, i]**2 - 10*np.cos(2*np.pi*coord[:, i])
         return val + noise_val
 
+    
+   
+    
 # class Shubert:
 #     def __init__(self, noise=False, noise_std=0):
 #         self.input_dim = 10

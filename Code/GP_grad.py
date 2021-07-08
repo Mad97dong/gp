@@ -35,7 +35,7 @@ class GP_grad(GP):
         l = hyper["lengthscale"]
         
         Xt = self._resize(Xt)
-        assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
+#         assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
         Xt_p = np.reshape(Xt[:, self.p], (-1, 1))
 
         sqdist = sq_dist(Xt, Xt)
@@ -50,7 +50,7 @@ class GP_grad(GP):
         l = hyper["lengthscale"]
         
         Xt = self._resize(Xt)
-        assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
+#         assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
         
         Xt_p = Xt[:, self.p]
         _X_p = np.reshape(self._X[:, self.p], (-1, 1))
@@ -73,8 +73,8 @@ class GP_grad(GP):
         
         XPt = self._resize(XPt)
         XQt = self._resize(XQt)
-        assert np.all(XPt >= self._B[:, 0]) and np.all(XPt <= self._B[:, 1])
-        assert np.all(XQt >= self._B[:, 0]) and np.all(XQt <= self._B[:, 1])
+#         assert np.all(XPt >= self._B[:, 0]) and np.all(XPt <= self._B[:, 1])
+#         assert np.all(XQt >= self._B[:, 0]) and np.all(XQt <= self._B[:, 1])
         
         XP_p = np.reshape(XPt[:, p], (-1, 1))
         XP_q = np.reshape(XPt[:, q], (-1, 1))

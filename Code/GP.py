@@ -130,7 +130,7 @@ class GP(object):
 
     def optimize(self): # Optimise the GP kernel hyperparameters
         opts = {"maxiter": 200, "maxfun": 200, "disp": False}
-        bounds = np.asarray([[1e-3, 10] , [0.05, 1e5]])  # bounds on Lenghtscale and kernal Variance
+        bounds = np.asarray([[1e-3, 1] , [0.05, 20]])  # bounds on Lenghtscale and kernal Variance
 
         W = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(30, 2))
         loglik = np.array([])
@@ -202,7 +202,10 @@ class GP(object):
         mu, covar = self.posterior(x)
         mu = np.squeeze(mu)
         s = np.sqrt(np.diag(covar))
-        return np.array(mu.reshape(-1, 1) - np.sqrt(b)*s.reshape(-1, 1)).item()
+        if b == np.inf:
+            return - s.reshape(-1, 1).item()
+        else:
+            return np.array(mu.reshape(-1, 1) - np.sqrt(b)*s.reshape(-1, 1)).item()
 
     def ucb_minimize(self, b): # fitted gp, bound, hyperparam b
         mesh = np.random.uniform(self.B[:, 0], self.B[:, 1], size=(1000, self.B.shape[0]))
@@ -266,16 +269,17 @@ class GP(object):
                                 method="L-BFGS-B") # L-BFGS-B
         return Res.x, self.EI(Res.x, y_best)
     
-    def Thompson_sample(self):
+    def Thompson_sample(self, n_mesh=5000):
         seed = np.random.randint(int(1e6))
         sobol = SobolEngine(self.dim, scramble=True, seed=seed)
-        Grid = from_unit_cube(np.array(sobol.draw(10000)), self.B[:, 0], self.B[:, 1])
+        n_mesh = n_mesh
+        Grid = from_unit_cube(np.array(sobol.draw(n_mesh)), self.B[:, 0], self.B[:, 1])
         mu, covar = self.posterior(Grid)
         mu = np.squeeze(mu)
         s = np.sqrt(np.diag(covar))
 
-        L = np.linalg.cholesky(covar + 1e-6*np.eye(10000)) # LL^T = Sigma (posterior covariance)
-        f_post = mu.reshape(-1,1) + np.dot(L, np.random.normal(size=(10000, 1)))
+        L = np.linalg.cholesky(covar + 1e-6*np.eye(n_mesh)) # LL^T = Sigma (posterior covariance)
+        f_post = mu.reshape(-1,1) + np.dot(L, np.random.normal(size=(n_mesh, 1)))
         arg_min = np.argmin(f_post)
         w = Grid[arg_min]
         return w
