@@ -34,7 +34,7 @@ class GP_grad(GP):
         v = hyper["var"]
         l = hyper["lengthscale"]
         
-        Xt = self._resize(Xt)
+        Xt = self._shape(Xt)
 #         assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
         Xt_p = np.reshape(Xt[:, self.p], (-1, 1))
 
@@ -49,7 +49,7 @@ class GP_grad(GP):
         v = hyper["var"]
         l = hyper["lengthscale"]
         
-        Xt = self._resize(Xt)
+        Xt = self._shape(Xt)
 #         assert np.all(Xt >= self._B[:, 0]) and np.all(Xt <= self._B[:, 1])
         
         Xt_p = Xt[:, self.p]
@@ -71,8 +71,8 @@ class GP_grad(GP):
         variance = hyper["var"]
         lengthscale = hyper["lengthscale"]
         
-        XPt = self._resize(XPt)
-        XQt = self._resize(XQt)
+        XPt = self._shape(XPt)
+        XQt = self._shape(XQt)
 #         assert np.all(XPt >= self._B[:, 0]) and np.all(XPt <= self._B[:, 1])
 #         assert np.all(XQt >= self._B[:, 0]) and np.all(XQt <= self._B[:, 1])
         
@@ -91,8 +91,8 @@ class GP_grad(GP):
         S = XQt.shape[0]
         coord = self.p
         
-        _XPt = self.compress(self._resize(XPt))
-        _XQt = self.compress(self._resize(XQt))
+        _XPt = self._shape(XPt)
+        _XQt = self._shape(XQt)
 
         Ky = self.cov_RBF(self._X, self._X) + np.eye(len(self._X)) * (self.noise_delta**2)
 
@@ -128,7 +128,7 @@ class GP_grad(GP):
         assert len(coord) == len(Xt)
         p_ = self.p
         
-        _Xt = [self.compress(self._resize(data)) for data in Xt]
+        _Xt = [self._shape(data) for data in Xt]
         n = len(coord)
         
         # Ky
@@ -158,7 +158,7 @@ class GP_grad(GP):
         return k_, K_
 
     def prior_grad(self, Xt):
-        _Xt = self.compress(self._resize(Xt))
+        _Xt = self._shape(Xt)
         
         M = _Xt.shape[0]
         K_11 = self.K11(_Xt, _Xt)
@@ -170,7 +170,7 @@ class GP_grad(GP):
         Returns: posterior mean, posterior var of grad GP
         """
         assert self.fitted == True
-        _Xt = self.compress(self._resize(Xt))
+        _Xt = self._shape(Xt)
         self.alpha = self.fit()
         K_01 = self.K01(_Xt)
 
@@ -185,6 +185,8 @@ class GP_grad(GP):
         Returns: posterior mean, posterior var of the full gradient (partial p & q) of GP
         """
         assert self.fitted == True
+        XPt = self._shape(XPt)
+        XQt = self._shape(XQt)
         
         K_01, K_02, K_11, K_22, K_12 = self.prior_joint_MVN(p, q, XPt, XQt) # compress in prior_joint_MVN
         k_ = np.hstack([K_01, K_02])
@@ -201,13 +203,13 @@ class GP_grad(GP):
 #             raise ValueError('covariance not positive semidefinite')
         return meanPost, covPost
     
-    def posterior_full_grad(self, coord, Xt): 
+    def posterior_full_grad(self, coord, Xt): ## usage: gp.posterior_full_grad('full', dim*[w])
         assert self.fitted == True
         if coord == 'full':
             coord = list(np.arange(self.dim))
-        assert len(coord) == len(Xt)
         
-        Xt = [self._resize(data) for data in Xt] # compress in prior_full_MVN
+        assert len(coord) == len(Xt)
+        Xt = [self._shape(x) for x in Xt]
         k_, K_ = self.prior_full_MVN(coord, Xt)
 
         # posterior mean
@@ -222,16 +224,16 @@ class GP_grad(GP):
         return meanPost, covPost
     
     def _unnormal_grad(self, g):
-        if self.isCompressed:
-            m, v = self.normalize
-            return v*g / (self.B[:, 1] - self.B[:, 0])
+        if self.CompressToCube:
+            m, v = self.get_normal()
+            return v*g   # v*g / (self.B[:, 1] - self.B[:, 0])
         else:
             return g
      
     def _normal_grad(self, g):
-        if self.isCompressed:
-            m, v = self.normalize
-            return g * (self.B[:, 1] - self.B[:, 0]) / v
+        if self.CompressToCube:
+            m, v = self.get_normal()
+            return g/v     # g * (self.B[:, 1] - self.B[:, 0]) / v
         else:
             return g
     
@@ -240,7 +242,7 @@ class GP_grad(GP):
         if x.ndim == 1:
             x = x.reshape((1, -1))
         assert x.shape[1] == self.dim
-        x = self._resize(x)
+        x = self._shape(x)
         
         p = self.p 
         
@@ -254,12 +256,12 @@ class GP_grad(GP):
         self.set_p(p)
         return M
 
-    def grad_sample(self, x):
+    def grad_sample(self, x, option='full'):
         assert self.fitted == True
         if x.ndim == 1:
             x = x.reshape((1, -1))
         assert x.shape[1] == self.dim
-        x = self._resize(x)
+        x = self._shape(x)
         
 #         MM, VV = self.posterior_joint_grad(0, 1, x, x)
         MM, VV = self.posterior_full_grad('full', self.dim*[x])

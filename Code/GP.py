@@ -16,14 +16,14 @@ class GP(object):
         self.B = B
         self.dim = B.shape[0]
         self.verbose = verbose
-        self.isCompressed = compress
-        self.compress = lambda x: to_unit_cube(x, self.B[:, 0], self.B[:, 1]) if self.isCompressed and np.all(x >= self.B[:, 0]) and np.all(self.B[:, 1] >= x) else x
+        self.CompressToCube = compress
+#         self.compress = lambda x: to_unit_cube(x, self.B[:, 0], self.B[:, 1]) if self.CompressToCube and np.all(x >= self.B[:, 0]) and np.all(self.B[:, 1] >= x) else x
         
         assert Noise == False # for now
         if Noise == True:
             self.noise_delta = noise_delta
         else:
-            self.noise_delta = 1e-4
+            self.noise_delta = 1e-4  # white noise -> regularizer
 
         # reset GP
         self.clear()
@@ -39,47 +39,57 @@ class GP(object):
         self.hyper["var"] = 1
         self.hyper["lengthscale"] = 1
         
-        self._B = self.compress(self.B)
+        self._B = self.B  # assume no compress
         self.normalize = (0, 1)
+        
+        
+    def _shape(self, Xt):  # shape = N*dim
+        if len(Xt.shape) == 1:  # 1d
+            Xt = np.reshape(Xt, (-1, self.dim))
+        
+        if Xt.shape[1] != self.dim: 
+            Xt = np.reshape(Xt, (-1, self.dim))
+        return Xt
+    
     
     def _wrap(self):
-        if self.isCompressed:
-            self._X = self.compress(self.X)
-            mu, sigma = np.median(self.y), self.y.std()
+        if self.CompressToCube:
+            self._X = self.X
+            mu, sigma = np.mean(self.y), self.y.std()
             sigma = 1.0 if sigma < 1e-6 else sigma
+
             self._y = (self.y - mu) / sigma
             self.normalize = (mu, sigma)
         else:
+            mu, sigma = self.normalize
             self._X = self.X
-            self._y = self.y
+            self._y = (self.y - mu) / sigma  # (0, 1)
             
-    def _unwrap(self, x):
-        if self.isCompressed:
-            return from_unit_cube(x, self.B[:, 0], self.B[:, 1])
-        else:
-            return x
-        
-    def _unnormal(self, y):
-        m, v = self.normalize
-        return m + v*y
+#     def _unwrap(self, x):
+#         if self.CompressToCube:
+#             return from_unit_cube(x, self.B[:, 0], self.B[:, 1])
+#         else:
+#             return x
+       
+    def get_normal(self):
+        return self.normalize
     
     def _normal(self, y):
         m, v = self.normalize
         return (y - m)/v
-
+   
     def set_data(self, X, y): # X: input 2d array [N*d], y: output 2d array [N*1]
-        if X.ndim == 1:
-            X = X.reshape((1, -1))
+        X = self._shape(X)
+        
         assert X.shape[1] == self.dim
+        
         self.X = X
-        self.y = np.reshape(y, (self.X.shape[0], 1)) # the standardised output N(0,1)
+        self.y = np.reshape(y, (self.X.shape[0], 1))
         self._wrap()
         self.fitted = False
 
     def add_data(self, X, y): # X [N*d], y [N*1]
-        assert len(y.shape) != 0
-        if X.ndim == 1:
-            X = X.reshape((1, -1))
+        X = self._shape(X)
         self.X = np.vstack((self.X, np.reshape(X, (X.shape[0], -1))))
         self.y = np.vstack((self.y, np.reshape(y, (y.shape[0], -1))))
         self._wrap()
@@ -99,8 +109,8 @@ class GP(object):
         variance = hyper["var"]
         lengthscale = hyper["lengthscale"]
         
-#         assert np.all(x1 >= self._B[:, 0]) and np.all(x1 <= self._B[:, 1])
-#         assert np.all(x2 >= self._B[:, 0]) and np.all(x2 <= self._B[:, 1])
+        assert np.all(x1 >= self._B[:, 0]) and np.all(x1 <= self._B[:, 1])
+        assert np.all(x2 >= self._B[:, 0]) and np.all(x2 <= self._B[:, 1])
 
         assert x1.shape[1] == x2.shape[1] # 2d
 
@@ -117,9 +127,9 @@ class GP(object):
         if np.isnan(KK_x_x).any():  # NaN
             print("NaN in KK_x_x")
             raise ValueError("NaN in KK_x_x")
-        
+            
         try:
-            L = scipy.linalg.cholesky(KK_x_x + 1e-6*np.eye(self._X.shape[0]), lower=True)
+            L = scipy.linalg.cholesky(KK_x_x, lower=True)
             temp = np.linalg.solve(L, self._y)
             alpha = np.linalg.solve(L.T, temp) # found the alpha for given hyper parameters
         except:
@@ -128,9 +138,10 @@ class GP(object):
         log_lik = -1/2*np.dot(self._y.T, alpha) - np.sum(np.log(np.diag(L))) - 0.5*len(self._y)*np.log(2*np.pi)
         return np.asscalar(log_lik)
 
+    
     def optimize(self): # Optimise the GP kernel hyperparameters
         opts = {"maxiter": 200, "maxfun": 200, "disp": False}
-        bounds = np.asarray([[1e-3, 1] , [0.05, 20]])  # bounds on Lenghtscale and kernal Variance
+        bounds = np.asarray([[1e-3, 2] , [0.05, 20]])  # bounds on Lenghtscale and kernal Variance
 
         W = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(30, 2))
         loglik = np.array([])
@@ -152,40 +163,29 @@ class GP(object):
         self.set_hyper(ls, var) # update hyper 
         return Res.x
     
-    def _resize(self, Xt):
-        # assume self.X defined
-        if len(Xt.shape) == 1:  # 1d
-            Xt = np.reshape(Xt, (-1, self.X.shape[1]))
-        
-        if Xt.shape[1] != self.X.shape[1]:  # match dimension
-            Xt = np.reshape(Xt, (-1, self.X.shape[1]))
-        return Xt
     
     def prior(self, Xt): # Xt: the testing points  [M*d]
-        M = Xt.shape[0]
-        _Xt = self.compress(self._resize(Xt))
-        meanPrior = np.zeros((M, 1))
+        _Xt = self._shape(Xt)
+        meanPrior = np.zeros((_Xt.shape[0], 1))
         covPrior = self.cov_RBF(_Xt, _Xt, self.get_hyper())
         return meanPrior, covPrior
 
+    
     def fit(self): # find alpha with self.hyper
         # self.K represents Ky (with noise)
         self.K = self.cov_RBF(self._X, self._X, self.hyper) + np.eye(len(self._X)) * (self.noise_delta**2)
         if np.isnan(self.K).any():  # NaN
             print("NaN in _K")
             
-        try:
-            self.L = scipy.linalg.cholesky(self.K, lower=True)
-        except:
-            self.L = scipy.linalg.cholesky(self.K + 1e-6*np.eye(self._X.shape[0]), lower=True)
+        self.L = scipy.linalg.cholesky(self.K, lower=True) 
         temp = np.linalg.solve(self.L, self._y)
         self.alpha = np.linalg.solve(self.L.T, temp) # algorithm 15.1
         self.fitted = True
         return self.alpha
 
-    def posterior(self, Xt): # Xt: the testing points [M*d]
+    def posterior(self, Xt, posterior_mean=False): # Xt: the testing points [M*d]
         assert self.fitted == True
-        _Xt = self.compress(self._resize(Xt)) # reshape into [M*d]
+        _Xt = self._shape(Xt) # reshape into [M*d]
         KK_xT_xT = self.cov_RBF(_Xt, _Xt, self.hyper)
         KK_x_xT = self.cov_RBF(self._X, _Xt, self.hyper)
 
@@ -193,11 +193,15 @@ class GP(object):
         v = np.linalg.solve(self.L, KK_x_xT)
         covPost = KK_xT_xT - np.dot(v.T, v)
         # var = np.reshape(np.diag(var), (-1, 1))
+        if posterior_mean:
+            return meanPost
         return meanPost, covPost
 
+    
     def ucb(self, x, b): # ucb at one point x, b for hyper, x:: 1*d
-        x = x.reshape(1, -1)
-#         assert np.all(x >= self.B[:, 0]) and np.all(x <= self.B[:, 1])
+        x = self._shape(x)
+            
+        assert np.all(x >= self._B[:, 0]) and np.all(x <= self._B[:, 1])
         
         mu, covar = self.posterior(x)
         mu = np.squeeze(mu)
@@ -218,12 +222,20 @@ class GP(object):
         return Res.x, self.ucb(Res.x, b)
     
     def PI(self, x, y_best): # given one point, x
-        x = x.reshape(1, -1)
+        x = self._shape(x)
+        y_best = self._normal(y_best)
         assert np.all(x >= self.B[:, 0]) and np.all(x <= self.B[:, 1])
         
         mu, covar = self.posterior(x)
         mu = np.squeeze(mu).item()
+        
+        for c in np.diag(covar):
+            if c < 0:
+                print(covar)
+                raise ValueError('negative covar')
+                
         s = np.sqrt(np.diag(covar)).item()
+        
         if s == 0:
             z = np.sign(y_best - mu) * np.inf            
         else:
@@ -245,7 +257,8 @@ class GP(object):
         return Res.x, self.PI(Res.x, y_best)
     
     def EI(self, x, y_best):
-        x = x.reshape(1, -1)
+        y_best = self._normal(y_best)
+        x = self._shape(x)
         assert np.all(x >= self.B[:, 0]) and np.all(x <= self.B[:, 1])
         
         mu, covar = self.posterior(x)
@@ -269,7 +282,7 @@ class GP(object):
                                 method="L-BFGS-B") # L-BFGS-B
         return Res.x, self.EI(Res.x, y_best)
     
-    def Thompson_sample(self, n_mesh=5000):
+    def thompson_sample(self, n_mesh=5000):
         seed = np.random.randint(int(1e6))
         sobol = SobolEngine(self.dim, scramble=True, seed=seed)
         n_mesh = n_mesh
@@ -283,4 +296,5 @@ class GP(object):
         arg_min = np.argmin(f_post)
         w = Grid[arg_min]
         return w
+        
     

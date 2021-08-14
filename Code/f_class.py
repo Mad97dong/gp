@@ -110,7 +110,7 @@ class Shubert_2:
         self.input_dim = 2
         
         self.bounds = {"x": (-5.12, 5.12), "y": (-5.12, 5.12)}
-        self.bounds = {"x": (-3, 3), "y": (-3, 3)}
+#         self.bounds = {"x": (-3, 1), "y": (-3, 1)}
         self.name = "Shubert"
         self.noise = noise
         self.noise_std = noise_std
@@ -175,7 +175,7 @@ class Ackley_2:
     def __init__(self, noise=False, noise_std=0):
         self.input_dim = 2
 #         self.bounds = {"x": (-32.768, 32.768), "y": (-32.768, 32.768)}
-        self.bounds = {"x": (-9, 9), "y": (-9, 9)} 
+        self.bounds = {"x": (-5, 10), "y": (-5, 10)} 
         self.name = "Ackley_2d"
         self.noise = noise
         self.noise_std = noise_std
@@ -437,9 +437,9 @@ class Alpine:
 
 
 class Ackley:
-    def __init__(self, noise=False, noise_std=0):
-        self.input_dim = 10
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-1, 10)])) # -32.768, 32.768
+    def __init__(self, noise=False, noise_std=0, dim=10):
+        self.input_dim = dim
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5, 10)])) # -32.768, 32.768
         self.name = "Ackley_6"
         self.noise = noise
         self.noise_std = noise_std
@@ -584,9 +584,9 @@ class Griewank:
 class Levy:
     def __init__(self, noise=False, noise_std=0, dim=2):
         self.input_dim = dim
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(0, 10)]))
-        self.lb = -0 * np.ones(dim)
-        self.ub = 11 * np.ones(dim)
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-5, 10)]))
+        self.lb = -5 * np.ones(dim)
+        self.ub = 10 * np.ones(dim)
         self.name = 'Levy'
         self.noise = noise
         self.noise_std = noise_std
@@ -616,9 +616,9 @@ class Levy:
 class Rastrigin:
     def __init__(self, noise=False, noise_std=0, dim=2):
         self.input_dim = dim
-        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-1, 1)]))
-        self.lb = -1.0 * np.ones(dim)
-        self.ub = 1.0 * np.ones(dim)
+        self.bounds = dict(zip([str(i) for i in range(self.input_dim)], self.input_dim*[(-3, 4)]))
+        self.lb = -3.0 * np.ones(dim)
+        self.ub = 4.0 * np.ones(dim)
         self.name = 'Rastrigin'
         self.noise = noise
         self.noise_std = noise_std
